@@ -22,8 +22,9 @@ left to propagate.
 
 import io
 import logging
+from typing import Annotated
 
-from fastapi import APIRouter, UploadFile
+from fastapi import APIRouter, Query, UploadFile
 from fastapi.responses import JSONResponse
 
 from app.common.enums import DatasetKind
@@ -143,16 +144,19 @@ async def get_ingest_report(
 async def get_ingest_quarantine(
     ingest_id: str,
     session: SessionDep,
-    limit: int = 100,
-    offset: int = 0,
+    limit: Annotated[int, Query(ge=1)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> QuarantinePage | JSONResponse:
     """List quarantined rows for a past ingest run, paginated.
 
     Args:
         ingest_id: The ingest run identifier.
-        limit: Maximum number of rows to return; capped at 1000 regardless
-            of the requested value.
-        offset: Number of rows to skip before collecting ``limit`` rows.
+        limit: Maximum number of rows to return; must be positive and is
+            capped at 1000 regardless of the requested value (a negative
+            value would otherwise disable SQLite's ``LIMIT`` entirely,
+            defeating the cap — rejected with 422).
+        offset: Number of rows to skip before collecting ``limit`` rows;
+            must be non-negative (422 otherwise).
         session: Injected database session.
 
     Returns:

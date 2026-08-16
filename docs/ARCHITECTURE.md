@@ -90,7 +90,7 @@ flowchart TD
 
     ingest_router --> ingest_service
     rec_router --> rec_service
-    stores_router --> rec_service
+    stores_router --> models
 
     ingest_service --> parser
     ingest_service --> rules

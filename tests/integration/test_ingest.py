@@ -26,6 +26,20 @@ from app.models.order_recommendation import OrderRecommendation
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
 
 
+ZERO_NORMALIZATIONS: dict[str, int] = {
+    "store_id_cleaned": 0,
+    "item_number_float_coerced": 0,
+    "date_format_converted": 0,
+    "value_whitespace_stripped": 0,
+    "casing_normalized": 0,
+}
+
+
+def expected_normalizations(**overrides: int) -> dict[str, int]:
+    """Build a zero-filled normalizations dict with the given overrides."""
+    return {**ZERO_NORMALIZATIONS, **overrides}
+
+
 def _upload(client: TestClient, dataset: str, filename: str) -> Response:
     """POST a fixture CSV to the ingest endpoint for ``dataset``.
 
@@ -73,7 +87,7 @@ def test_clean_items_catalog_loads_with_no_defects(client: TestClient) -> None:
     assert report["loaded_rows"] == 10
     assert report["deduplicated_rows"] == 0
     assert report["quarantined_rows"] == 0
-    assert report["normalizations"] == {}
+    assert report["normalizations"] == expected_normalizations()
     assert report["quarantine_summary"] == {}
     assert report["warnings"] == []
     assert isinstance(report["ingest_id"], str) and report["ingest_id"]
@@ -97,7 +111,7 @@ def test_store_id_variants_are_normalized(client: TestClient) -> None:
     assert report["deduplicated_rows"] == 0
     assert report["quarantined_rows"] == 0
     assert report["quarantine_summary"] == {}
-    assert report["normalizations"] == {"store_id_cleaned": 2}
+    assert report["normalizations"] == expected_normalizations(store_id_cleaned=2)
     assert report["warnings"] == [
         "3 recommendations reference no orderable window (loaded; flagged)"
     ]
@@ -121,7 +135,7 @@ def test_float_item_number_coerced_or_quarantined(client: TestClient) -> None:
     assert report["deduplicated_rows"] == 0
     assert report["quarantined_rows"] == 1
     assert report["quarantine_summary"] == {"invalid_value": 1}
-    assert report["normalizations"] == {"item_number_float_coerced": 1}
+    assert report["normalizations"] == expected_normalizations(item_number_float_coerced=1)
     assert report["warnings"] == [
         "2 recommendations reference no orderable window (loaded; flagged)"
     ]
@@ -272,7 +286,7 @@ def test_dd_mm_yyyy_dates_are_normalized_and_bad_dates_quarantined(client: TestC
     assert report["deduplicated_rows"] == 0
     assert report["quarantined_rows"] == 1
     assert report["quarantine_summary"] == {"invalid_value": 1}
-    assert report["normalizations"] == {"date_format_converted": 1}
+    assert report["normalizations"] == expected_normalizations(date_format_converted=1)
     assert report["warnings"] == []
 
 
@@ -526,3 +540,56 @@ def test_replace_load_removes_rows_not_in_new_file(client: TestClient, session: 
     assert row_count_after == 1
     stored_ids = session.execute(select(OrderRecommendation.item_number)).scalars().all()
     assert stored_ids == [1002]
+
+
+def test_non_utf8_upload_returns_400_and_leaves_data_intact(
+    client: TestClient, session: Session
+) -> None:
+    """A non-UTF-8 file is rejected with 400 problem+json, atomically (F1).
+
+    The valid header is followed by bytes that cannot decode as UTF-8; the
+    response must be a 400 ``Invalid CSV encoding`` problem detail, and data
+    loaded by a previous good ingest must be untouched.
+    """
+    _ingest_catalog(client)
+    good = _upload(client, "order-recommendations", "order_recommendations_matching.csv")
+    assert good.status_code == 200
+    before = session.scalar(select(func.count()).select_from(OrderRecommendation))
+
+    payload = (
+        b"store_id,item_number,ordering_day,delivery_day,recommended_quantity\n"
+        b"\xff\xfe\x00bad,1,2024-01-01,2024-01-02,5\n"
+    )
+    response = client.post(
+        "/api/v1/ingest/order-recommendations",
+        files={"file": ("bad.csv", payload, "text/csv")},
+    )
+
+    assert response.status_code == 400
+    body = response.json()
+    assert body["title"] == "Invalid CSV encoding"
+    assert body["status"] == 400
+    assert "UTF-8" in body["detail"]
+    after = session.scalar(select(func.count()).select_from(OrderRecommendation))
+    assert after == before
+
+
+@pytest.mark.parametrize(
+    ("query", "field"),
+    [("limit=-5", "limit"), ("limit=0", "limit"), ("offset=-3", "offset")],
+)
+def test_quarantine_pagination_rejects_non_positive_bounds(
+    client: TestClient, query: str, field: str
+) -> None:
+    """Negative/zero limit and negative offset are rejected with 422 (F2).
+
+    A negative ``LIMIT`` would disable SQLite's row cap entirely, silently
+    bypassing the 1000-row page ceiling.
+    """
+    _ingest_catalog(client)
+    report = _upload(client, "order-recommendations", "negative_quantity.csv").json()
+
+    response = client.get(f"/api/v1/ingest/{report['ingest_id']}/quarantine?{query}")
+
+    assert response.status_code == 422
+    assert any(field in str(err.get("loc", [])) for err in response.json()["detail"])

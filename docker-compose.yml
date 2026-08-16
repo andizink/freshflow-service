@@ -1,0 +1,16 @@
+# Optional convenience wrapper around the single-container deployment
+# (PLAN.md §5 / ADR-002). `docker build` + `docker run` remain the primary,
+# fully sufficient way to run the service; compose adds only a named volume
+# so the SQLite database survives container recreation.
+services:
+  freshflow:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      FRESHFLOW_DB_PATH: /data/freshflow.db
+    volumes:
+      - freshflow-data:/data
+
+volumes:
+  freshflow-data:

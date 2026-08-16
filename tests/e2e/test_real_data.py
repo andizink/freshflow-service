@@ -3,7 +3,7 @@
 Ingests ``data/items.csv``, ``data/inventory.csv``,
 ``data/orderable_items.csv``, and ``data/order_recommendations.csv`` through
 the real HTTP ingest endpoint (via the ``client`` fixture, an isolated
-in-memory-backed SQLite database per PLAN.md §6.1) and asserts the resulting
+temp-file-backed SQLite database per PLAN.md §6.1) and asserts the resulting
 reports match ``tests/e2e/expected_counts.json`` field by field. That file
 is produced by ``scripts/generate_expected_counts.py``, an independently
 written, standalone profiling script (PLAN.md §6.1/§9) - so the "expected"

@@ -235,7 +235,9 @@ def ingest_dataset(session: Session, dataset: DatasetKind, file: IO[bytes]) -> I
     known_items = _load_known_items(session, dataset)
 
     received_rows = 0
-    normalizations: dict[str, int] = {}
+    # Zero-filled from the fixed key vocabulary (PLAN.md §3.1 report example)
+    # so consumers never need to distinguish an absent key from a zero count.
+    normalizations: dict[str, int] = dict.fromkeys(rules.NORMALIZATION_KEYS, 0)
     row_warnings: dict[str, int] = {}
     quarantine_summary: dict[str, int] = {}
     quarantine_entries: list[tuple[int, dict[str, str], list[ReasonCode]]] = []

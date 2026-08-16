@@ -7,6 +7,9 @@
     "quarantined_rows": 0,
     "normalizations": {
       "casing_normalized": 3,
+      "date_format_converted": 0,
+      "item_number_float_coerced": 0,
+      "store_id_cleaned": 0,
       "value_whitespace_stripped": 4
     },
     "quarantine_summary": {}
@@ -17,8 +20,11 @@
     "deduplicated_rows": 118,
     "quarantined_rows": 630,
     "normalizations": {
+      "casing_normalized": 0,
       "date_format_converted": 789,
-      "store_id_cleaned": 765
+      "item_number_float_coerced": 0,
+      "store_id_cleaned": 765,
+      "value_whitespace_stripped": 0
     },
     "quarantine_summary": {
       "unknown_item": 630
@@ -31,6 +37,8 @@
     "quarantined_rows": 1875,
     "normalizations": {
       "casing_normalized": 1334,
+      "date_format_converted": 0,
+      "item_number_float_coerced": 0,
       "store_id_cleaned": 686,
       "value_whitespace_stripped": 47
     },
@@ -45,8 +53,11 @@
     "deduplicated_rows": 286,
     "quarantined_rows": 1441,
     "normalizations": {
+      "casing_normalized": 0,
+      "date_format_converted": 0,
       "item_number_float_coerced": 1916,
-      "store_id_cleaned": 700
+      "store_id_cleaned": 700,
+      "value_whitespace_stripped": 0
     },
     "quarantine_summary": {
       "negative_quantity": 515,

@@ -485,7 +485,15 @@ def profile_dataset(
         ``known_items``), else ``None``.
     """
     received_rows = 0
-    normalizations: dict[str, int] = {}
+    # Zero-filled fixed key vocabulary, mirroring the service's report shape
+    # (absent key is never distinguishable from a zero count).
+    normalizations: dict[str, int] = {
+        "store_id_cleaned": 0,
+        "item_number_float_coerced": 0,
+        "date_format_converted": 0,
+        "value_whitespace_stripped": 0,
+        "casing_normalized": 0,
+    }
     quarantine_summary: dict[str, int] = {}
     quarantined_rows = 0
 

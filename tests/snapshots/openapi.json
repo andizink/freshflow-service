@@ -1,0 +1,680 @@
+{
+  "components": {
+    "schemas": {
+      "Body_ingest_dataset_endpoint_api_v1_ingest__dataset__post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_ingest_dataset_endpoint_api_v1_ingest__dataset__post",
+        "type": "object"
+      },
+      "DatasetKind": {
+        "description": "The four ingestible dataset kinds, keyed by their API path segment.\n\nSee PLAN.md \u00a73.1 for the ``POST /api/v1/ingest/{dataset}`` contract.",
+        "enum": [
+          "items",
+          "inventory",
+          "orderable-items",
+          "order-recommendations"
+        ],
+        "title": "DatasetKind",
+        "type": "string"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "IngestReport": {
+        "description": "Machine-readable summary of one ingest run.\n\nAttributes:\n    ingest_id: Unique identifier of this ingest run (uuid4 hex).\n    dataset: The dataset kind that was ingested.\n    received_rows: Total data rows read from the uploaded CSV.\n    loaded_rows: Rows successfully normalized and persisted.\n    deduplicated_rows: Rows dropped as exact-duplicate keys (N7/Q4).\n    quarantined_rows: Rows rejected and persisted to quarantine (Q1-Q5).\n    normalizations: Counts of applied normalizations, keyed by rule\n        name (e.g. ``\"store_id_cleaned\"``, ``\"item_number_float_coerced\"``).\n    quarantine_summary: Counts of quarantined rows, keyed by\n        :class:`~app.common.enums.ReasonCode` value.\n    warnings: Human-readable warnings that do not reject rows (e.g.\n        cross-file referential gaps, fractional-quantity notes).",
+        "properties": {
+          "dataset": {
+            "$ref": "#/components/schemas/DatasetKind"
+          },
+          "deduplicated_rows": {
+            "title": "Deduplicated Rows",
+            "type": "integer"
+          },
+          "ingest_id": {
+            "title": "Ingest Id",
+            "type": "string"
+          },
+          "loaded_rows": {
+            "title": "Loaded Rows",
+            "type": "integer"
+          },
+          "normalizations": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Normalizations",
+            "type": "object"
+          },
+          "quarantine_summary": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Quarantine Summary",
+            "type": "object"
+          },
+          "quarantined_rows": {
+            "title": "Quarantined Rows",
+            "type": "integer"
+          },
+          "received_rows": {
+            "title": "Received Rows",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ingest_id",
+          "dataset",
+          "received_rows",
+          "loaded_rows",
+          "deduplicated_rows",
+          "quarantined_rows",
+          "normalizations",
+          "quarantine_summary",
+          "warnings"
+        ],
+        "title": "IngestReport",
+        "type": "object"
+      },
+      "QuarantinePage": {
+        "description": "A page of quarantined rows for one ingest run.\n\nAttributes:\n    ingest_id: The ingest run these rows belong to.\n    total: Total number of quarantined rows for the run (all pages).\n    limit: The page size that was requested.\n    offset: The offset that was requested.\n    rows: The rows in this page.",
+        "properties": {
+          "ingest_id": {
+            "title": "Ingest Id",
+            "type": "string"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/QuarantineRowOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ingest_id",
+          "total",
+          "limit",
+          "offset",
+          "rows"
+        ],
+        "title": "QuarantinePage",
+        "type": "object"
+      },
+      "QuarantineRowOut": {
+        "description": "One quarantined row, as returned by the audit endpoint.\n\nAttributes:\n    row_number: 1-indexed source row number (header is row 1).\n    raw_row: The original, unmodified row as a string-keyed dict.\n    reasons: Reason codes explaining why the row was rejected.",
+        "properties": {
+          "raw_row": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Raw Row",
+            "type": "object"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/ReasonCode"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "row_number": {
+            "title": "Row Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "row_number",
+          "raw_row",
+          "reasons"
+        ],
+        "title": "QuarantineRowOut",
+        "type": "object"
+      },
+      "ReasonCode": {
+        "description": "Quarantine reason codes, one per row-rejection rule Q1-Q5 (PLAN.md \u00a74.3).\n\nAttributes:\n    NEGATIVE_QUANTITY: Q1 - ``recommended_quantity < 0``.\n    UNKNOWN_ITEM: Q2 - ``item_number`` not present in the items catalog\n        at ingest time.\n    INVALID_VALUE: Q3 - a field value could not be parsed.\n    MISSING_FIELD: Q3 - a required field was empty or absent.\n    CONFLICTING_DUPLICATE: Q4 - duplicate key with differing payloads.\n    INVALID_DATE_ORDER: Q5 - ``delivery_day < ordering_day``.",
+        "enum": [
+          "negative_quantity",
+          "unknown_item",
+          "invalid_value",
+          "missing_field",
+          "conflicting_duplicate",
+          "invalid_date_order"
+        ],
+        "title": "ReasonCode",
+        "type": "string"
+      },
+      "RecommendationItem": {
+        "description": "One enriched order recommendation line item.\n\nAttributes:\n    item_number: Catalog item number.\n    item_name: Item display name, ``None`` if the item is unknown to\n        the catalog.\n    category: Category, preferring the orderable-window category when\n        present, else the catalog category.\n    is_bio: Whether the item is a \"bio\" (organic) product, ``None`` if\n        unknown to the catalog.\n    recommended_quantity: Recommended quantity to order.\n    delivery_day: The day the resulting order is expected to arrive.\n    current_inventory: Same-day on-hand quantity rounded half-up to the\n        nearest integer, ``None`` if no inventory record exists.\n    purchase_price: Purchase price, preferring the orderable-window\n        price over the catalog price.\n    suggested_retail_price: Suggested retail price, preferring the\n        orderable-window price over the catalog price.\n    orderable: Whether an orderable window exists for this\n        store/item/ordering-day.\n    tags: Tags from the orderable window, empty if none.",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "current_inventory": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Inventory"
+          },
+          "delivery_day": {
+            "format": "date",
+            "title": "Delivery Day",
+            "type": "string"
+          },
+          "is_bio": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Bio"
+          },
+          "item_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Name"
+          },
+          "item_number": {
+            "title": "Item Number",
+            "type": "integer"
+          },
+          "orderable": {
+            "title": "Orderable",
+            "type": "boolean"
+          },
+          "purchase_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Price"
+          },
+          "recommended_quantity": {
+            "title": "Recommended Quantity",
+            "type": "integer"
+          },
+          "suggested_retail_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggested Retail Price"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "item_number",
+          "item_name",
+          "category",
+          "is_bio",
+          "recommended_quantity",
+          "delivery_day",
+          "current_inventory",
+          "purchase_price",
+          "suggested_retail_price",
+          "orderable",
+          "tags"
+        ],
+        "title": "RecommendationItem",
+        "type": "object"
+      },
+      "RecommendationsResponse": {
+        "description": "Order recommendations for one store and ordering day.\n\nAttributes:\n    store_id: Normalized store identifier.\n    day: The ordering day queried.\n    count: Number of recommendations returned.\n    recommendations: The recommendation line items.",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "recommendations": {
+            "items": {
+              "$ref": "#/components/schemas/RecommendationItem"
+            },
+            "title": "Recommendations",
+            "type": "array"
+          },
+          "store_id": {
+            "title": "Store Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "store_id",
+          "day",
+          "count",
+          "recommendations"
+        ],
+        "title": "RecommendationsResponse",
+        "type": "object"
+      },
+      "StoreInfo": {
+        "description": "Row counts for one known store, across the per-store datasets.\n\nAttributes:\n    store_id: Normalized store identifier.\n    inventory_rows: Number of inventory records for this store.\n    recommendation_rows: Number of order recommendation records for\n        this store.\n    orderable_rows: Number of orderable-item window records for this\n        store.",
+        "properties": {
+          "inventory_rows": {
+            "title": "Inventory Rows",
+            "type": "integer"
+          },
+          "orderable_rows": {
+            "title": "Orderable Rows",
+            "type": "integer"
+          },
+          "recommendation_rows": {
+            "title": "Recommendation Rows",
+            "type": "integer"
+          },
+          "store_id": {
+            "title": "Store Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "store_id",
+          "inventory_rows",
+          "recommendation_rows",
+          "orderable_rows"
+        ],
+        "title": "StoreInfo",
+        "type": "object"
+      },
+      "StoresResponse": {
+        "description": "All known stores and their row counts.\n\nAttributes:\n    stores: The list of known stores.",
+        "properties": {
+          "stores": {
+            "items": {
+              "$ref": "#/components/schemas/StoreInfo"
+            },
+            "title": "Stores",
+            "type": "array"
+          }
+        },
+        "required": [
+          "stores"
+        ],
+        "title": "StoresResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "FreshFlow Service",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/ingest/{dataset}": {
+      "post": {
+        "description": "Upload and atomically replace one dataset.\n\nArgs:\n    dataset: Which dataset ``file`` represents.\n    file: The uploaded CSV, as multipart form field ``file``.\n    session: Injected database session.\n\nReturns:\n    The ingest report for this run (200), or a 413\n    ``application/problem+json`` response if the upload exceeds\n    ``settings.max_upload_bytes``.\n\nRaises:\n    app.ingest.parser.HeaderError: If the CSV header does not match the\n        expected columns for ``dataset``; mapped to 400 by the handler\n        registered in ``app.main``.",
+        "operationId": "ingest_dataset_endpoint_api_v1_ingest__dataset__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dataset",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/DatasetKind"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_ingest_dataset_endpoint_api_v1_ingest__dataset__post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ingest Dataset Endpoint",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/api/v1/ingest/{ingest_id}": {
+      "get": {
+        "description": "Re-fetch a past ingest run's report.\n\nArgs:\n    ingest_id: The ingest run identifier.\n    session: Injected database session.\n\nReturns:\n    The ingest report for the requested run (200), or a 404\n    ``application/problem+json`` response if ``ingest_id`` is unknown.",
+        "operationId": "get_ingest_report_api_v1_ingest__ingest_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ingest_id",
+            "required": true,
+            "schema": {
+              "title": "Ingest Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ingest Report",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/api/v1/ingest/{ingest_id}/quarantine": {
+      "get": {
+        "description": "List quarantined rows for a past ingest run, paginated.\n\nArgs:\n    ingest_id: The ingest run identifier.\n    limit: Maximum number of rows to return; must be positive and is\n        capped at 1000 regardless of the requested value (a negative\n        value would otherwise disable SQLite's ``LIMIT`` entirely,\n        defeating the cap \u2014 rejected with 422).\n    offset: Number of rows to skip before collecting ``limit`` rows;\n        must be non-negative (422 otherwise).\n    session: Injected database session.\n\nReturns:\n    A page of quarantined rows with their reasons (200), or a 404\n    ``application/problem+json`` response if ``ingest_id`` is unknown.",
+        "operationId": "get_ingest_quarantine_api_v1_ingest__ingest_id__quarantine_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ingest_id",
+            "required": true,
+            "schema": {
+              "title": "Ingest Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuarantinePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ingest Quarantine",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/api/v1/stores": {
+      "get": {
+        "description": "List all known stores with their per-dataset row counts.\n\nA store is known if it has at least one row in any of the ``inventory``,\n``orderable_items``, or ``order_recommendations`` tables. Results are\nsorted by ``store_id``.\n\nArgs:\n    session: Injected database session.\n\nReturns:\n    The known stores and their row counts.",
+        "operationId": "list_stores_api_v1_stores_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoresResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Stores",
+        "tags": [
+          "stores"
+        ]
+      }
+    },
+    "/api/v1/stores/{store_id}/recommendations": {
+      "get": {
+        "description": "Fetch enriched order recommendations for a store and ordering day.\n\nArgs:\n    store_id: The store identifier, in any case/whitespace variant\n        (normalized server-side).\n    day: The ordering day, as an ISO ``YYYY-MM-DD`` query parameter.\n    session: Injected database session.\n\nReturns:\n    The enriched recommendations response.\n\nRaises:\n    StoreNotFoundError: If ``store_id`` (after normalization) has no\n        records in any dataset; mapped to a 404 problem response by\n        the app-level exception handler in ``app.main``.",
+        "operationId": "get_store_recommendations_api_v1_stores__store_id__recommendations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "store_id",
+            "required": true,
+            "schema": {
+              "title": "Store Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "day",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Day",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Store Recommendations",
+        "tags": [
+          "recommendations"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "Liveness probe used by the Docker ``HEALTHCHECK``.\n\nReturns:\n    A minimal status payload.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    }
+  }
+}

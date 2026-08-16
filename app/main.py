@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.db import get_engine, init_db
-from app.ingest.parser import HeaderError
+from app.ingest.parser import CsvDecodeError, HeaderError
 from app.ingest.router import router as ingest_router
 from app.recommendations.router import router as recommendations_router
 from app.recommendations.service import StoreNotFoundError
@@ -129,6 +129,20 @@ def create_app() -> FastAPI:
             A 400 RFC 9457 problem response.
         """
         return _problem_response(400, "Invalid CSV header", str(exc))
+
+    @app.exception_handler(CsvDecodeError)
+    async def handle_csv_decode_error(request: Request, exc: CsvDecodeError) -> JSONResponse:
+        """Map :class:`CsvDecodeError` to a 400 problem+json response.
+
+        Args:
+            request: The incoming request (unused, required by the
+                exception handler protocol).
+            exc: The raised error.
+
+        Returns:
+            A 400 RFC 9457 problem response.
+        """
+        return _problem_response(400, "Invalid CSV encoding", str(exc))
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:

@@ -1,7 +1,7 @@
 # FreshFlow — Data Quality: Defect Catalog and Rule Mapping
 
 This document is the formal, traceable mapping from the defects measured in
-the four challenge CSV files (D1–D9, first described for a general audience
+the four challenge CSV files (D1–D10, first described for a general audience
 in [DATA_GUIDE.md](DATA_GUIDE.md)) to the deterministic normalization rules
 (N1–N7) and quarantine rules (Q1–Q5) defined in PLAN.md §4.2–§4.3 and
 implemented in `app/ingest/normalize.py` and `app/ingest/rules.py`. Every
@@ -19,23 +19,26 @@ derived twice rather than copied from the ingest implementation itself.
 
 | Defect | Description | File(s) | Measured count | Rule(s) | Outcome | Implementing function | Test module |
 |---|---|---|---|---|---|---|---|
-| **D1** | Store IDs spelled inconsistently (casing, stray whitespace) — `STORE_A`, `" store_a"`, `"store_a "` | all per-store files | ~1,300 rows (8 spelling variants of 2 real stores) | **N1** — strip + lowercase | Normalized, counted as `store_id_cleaned` | `app.ingest.normalize.normalize_store_id` | `tests/unit/test_n1_store_id.py` |
-| **D2** | Item numbers written as float-formatted strings — `"1001.0"` instead of `1001` | `order_recommendations.csv` | ~650 rows | **N2** — coerce zero-fractional float string to int; non-zero fraction is not coercible | Normalized (`item_number_float_coerced`) if fraction is exactly zero, else **Q3** `invalid_value` | `app.ingest.normalize.coerce_item_number` | `tests/unit/test_n2_item_number.py` |
-| **D3** | Two date formats in one column — `23/01/2024` amid `2024-01-23` | `inventory.csv` | 803 rows | **N3** — ISO first, then day-first `DD/MM/YYYY` ([ADR-007](adr/ADR-007-date-parsing.md)) | Normalized (`date_format_converted`); unparseable dates are **Q3** `invalid_value` | `app.ingest.normalize.parse_day` | `tests/unit/test_n3_date_parsing.py` |
+| **D1** | Store IDs spelled inconsistently (casing, stray whitespace) — `STORE_A`, `" store_a"`, `"store_a "` | all per-store files | 2,258 raw rows (8 spelling variants of 2 real stores); reports count 2,151 as `store_id_cleaned` because quarantined rows contribute no normalization counts (ADR-015) | **N1** — strip + lowercase | Normalized, counted as `store_id_cleaned` | `app.ingest.normalize.normalize_store_id` | `tests/unit/test_n1_store_id.py` |
+| **D2** | Item numbers written as float-formatted strings — `"1001.0"` instead of `1001` | `order_recommendations.csv` | 1,994 raw rows; 1,916 loaded and counted (the other 78 also failed Q1/Q2 on the same row, so N2's repair was never reached — see [ADR-015](adr/ADR-015-ingest-report-semantics.md)) | **N2** — coerce zero-fractional float string to int; non-zero fraction is not coercible | Normalized (`item_number_float_coerced`) if fraction is exactly zero, else **Q3** `invalid_value` | `app.ingest.normalize.coerce_item_number` | `tests/unit/test_n2_item_number.py` |
+| **D3** | Two date formats in one column — `23/01/2024` amid `2024-01-23` | `inventory.csv` | 803 rows | **N3** — ISO first, then day-first `DD/MM/YYYY` ([ADR-007](adr/ADR-007-date-parsing.md)) | Normalized (`date_format_converted`); unparseable dates are **Q3** `invalid_value` | `app.ingest.normalize.parse_day` | `tests/unit/test_n3_dates.py` |
 | **D4** | Fractional stock counts despite the "whole pieces" convention — `16.4` | `inventory.csv` | ~22,400 rows (~87% of the file) | **N6** — parse and store as exact `Decimal`, never rounded in the DB ([ADR-008](adr/ADR-008-fractional-inventory-storage.md)) | Loaded with a `fractional_quantity` warning (not quarantined); API rounds only for `current_inventory` | `app.ingest.normalize.parse_quantity` | `tests/unit/test_n6_quantity.py` |
 | **D5** | Negative recommended quantities — `recommended_quantity = -5` | `order_recommendations.csv` | 515 rows | **Q1** — `negative_quantity` | Quarantined, raw row + reason persisted | `app.ingest.rules.process_row` | `tests/unit/test_q1_negative_quantity.py` |
-| **D6** | References to products missing from the catalog — items `1099`, `9901`, `9902`, `9903` | all per-store files | ~950 rows | **Q2** — `unknown_item` | Quarantined against the catalog loaded at ingest time; recoverable by re-ingesting `items` plus the file | `app.ingest.rules.process_row` | `tests/unit/test_q2_unknown_item.py` |
-| **D7** | Exact duplicate rows (identical key, identical payload) | all per-store files | 610 keys (120 inventory + 295 order_recommendations + 195 orderable_items) | **N7** — keep first occurrence, count the rest as deduplicated | Deduplicated, counted in `IngestReport.deduplicated_rows`; a duplicate key with a *differing* payload is **Q4** `conflicting_duplicate` instead (first loaded, both raw versions quarantined) | `app.ingest.rules.key_for` (dedup detection in `app.ingest.service.ingest_dataset`) | `tests/unit/test_n7_dedup.py`, `tests/unit/test_q4_conflicting_duplicate.py` |
-| **D8** | Casing/whitespace noise in categories, tags, and names — `FRUITS`, `"new  "`, `"Cucumber  "` | `items.csv`, `orderable_items.csv` | ~1,500 values | **N4** (category/tag canonicalization) and **N5** (free-text whitespace stripping) | Normalized, counted as `casing_normalized` / `value_whitespace_stripped` | `app.ingest.normalize.normalize_category`, `app.ingest.normalize.normalize_tags`, `app.ingest.normalize.strip_text` | `tests/unit/test_n4_category_tags.py`, `tests/unit/test_n5_text_whitespace.py` |
-| **D9** | Recommendations without a matching orderable window, and vice versa | cross-file (`order_recommendations.csv` ↔ `orderable_items.csv`) | 3,621 recommendation keys with no orderable window; 3,294 orderable windows with no recommendation | *(none — not a row-level defect)* | Loaded as-is on both sides; surfaced as an `orderable: false` flag at query time and a `warnings` entry on the `order_recommendations` ingest report — not a quarantine condition, since nothing about either row is individually invalid | `app.recommendations.service.get_recommendations` (join), `app.ingest.service.ingest_dataset` (warning) | `tests/integration/test_ingest_order_recommendations.py`, `tests/integration/test_query_recommendations.py` |
+| **D6** | References to products missing from the catalog — items `1099`, `9901`, `9902`, `9903` | all per-store files | 2,181 rows (630 inventory + 610 orderable_items + 941 order_recommendations) | **Q2** — `unknown_item` | Quarantined against the catalog loaded at ingest time; recoverable by re-ingesting `items` plus the file | `app.ingest.rules.process_row` | `tests/unit/test_q2_unknown_item.py` |
+| **D7** | Exact duplicate rows (identical key, identical payload) | all per-store files | 610 keys (120 inventory + 295 order_recommendations + 195 orderable_items) | **N7** — keep first occurrence, count the rest as deduplicated | Deduplicated, counted in `IngestReport.deduplicated_rows`; a duplicate key with a *differing* payload is **Q4** `conflicting_duplicate` instead (first loaded, both raw versions quarantined) | `app.ingest.rules.key_for` (dedup detection in `app.ingest.service.ingest_dataset`) | `tests/unit/test_n7_q4_dedup_key.py` |
+| **D8** | Casing/whitespace noise in categories, tags, and names — `FRUITS`, `"new  "`, `"Cucumber  "` | `items.csv`, `orderable_items.csv` | ~1,500 values | **N4** (category/tag canonicalization) and **N5** (free-text whitespace stripping) | Normalized, counted as `casing_normalized` / `value_whitespace_stripped` | `app.ingest.normalize.normalize_category`, `app.ingest.normalize.normalize_tags`, `app.ingest.normalize.strip_text` | `tests/unit/test_n4_category_tags.py`, `tests/unit/test_n5_text_fields.py` |
+| **D9** | Recommendations without a matching orderable window | cross-file (`order_recommendations.csv` ↔ `orderable_items.csv`) | 327 recommendation keys with no window in the raw data *after normalization* (0 windows lack a recommendation; the oft-quoted ≈3,600/≈3,300 figures are artifacts of comparing unnormalized strings). The ingest warning reports 1,223 because it compares **loaded** rows: 1,909 windows are quarantined by D6/D10, so recommendations pointing at them become window-less in the loaded set | *(none — not a row-level defect)* | Loaded as-is; surfaced as an `orderable: false` flag at query time and a `warnings` entry on the `order_recommendations` ingest report — not a quarantine condition, since nothing about the row is individually invalid | `app.recommendations.service.get_recommendations` (join), `app.ingest.service.ingest_dataset` (warning) | `tests/integration/test_ingest.py`, `tests/integration/test_query_recommendations.py` |
+| **D10** | Orderable window with an empty `purchase_price` (and, on the same rows, an empty `profit_margin`) | `orderable_items.csv` | 1,299 rows | *(none — a missing required field, not a repair)* | **Q3** `missing_field` — a purchasable window without a purchase price cannot be priced or margined and is unusable for ordering decisions; the co-occurrence of both blank fields on exactly these rows points to an upstream export bug. Quarantined, recoverable by re-ingesting once the export is fixed | `app.ingest.rules.process_row` (`_decimal`) | `tests/unit/test_q3_invalid_value_missing_field.py` |
 
-Two rules exist that are not driven by a numbered defect in the D1–D9
-catalog, because they describe row-level conditions found during
-processing rather than a named upstream data-quality pattern:
+Two rules exist that are not driven by a single numbered defect in the
+D1–D10 catalog, because they describe row-level conditions found during
+processing rather than one named upstream data-quality pattern (D10 is one
+concrete, named cause of the general Q3 `missing_field` case below, not the
+only one — an empty `name` or `category` cell hits the same rule):
 
 | Rule | Condition | Outcome | Implementing function | Test module |
 |---|---|---|---|---|
-| **Q3** (general case) | Any field unparseable after N1–N6 (bad date, non-numeric quantity, missing required column value) — a superset of D2 and D3's unparseable cases | Quarantined as `invalid_value` (unparseable) or `missing_field` (absent/empty required field) | `app.ingest.rules.process_row` | `tests/unit/test_q3_invalid_value.py` |
+| **Q3** (general case) | Any field unparseable after N1–N6 (bad date, non-numeric quantity, missing required column value, e.g. D10's empty `purchase_price`) — a superset of D2, D3, and D10's cases | Quarantined as `invalid_value` (unparseable) or `missing_field` (absent/empty required field) | `app.ingest.rules.process_row` | `tests/unit/test_q3_invalid_value_missing_field.py` |
 | **Q5** | `delivery_day < ordering_day` — goods would arrive before they were ordered | Quarantined as `invalid_date_order` | `app.ingest.rules.process_row` | `tests/unit/test_q5_date_order.py` |
 
 ---
@@ -53,8 +56,12 @@ Every rule ID above is cited in the docstring of the function that
 implements it (`app/ingest/normalize.py`, `app/ingest/rules.py`), per the
 project's documentation standard (PLAN.md §2.2) — this file, the code, and
 the test suite are kept in agreement by a dedicated traceability meta-test
-(PLAN.md §6.1) that asserts every ID appears in exactly one implementing
-function and one test module.
+(`tests/unit/test_traceability.py`, PLAN.md §6.1) that asserts every rule ID
+N1–N7/Q1–Q5 appears in at least one `app/ingest` module docstring and is
+visible (by file name or docstring) in at least one `tests/unit` module —
+deliberately an "appears somewhere" check rather than an "exactly one"
+check, since a rule's implementation may legitimately span
+`normalize.py`, `rules.py`, and `service.py`.
 
 ---
 

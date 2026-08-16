@@ -76,6 +76,28 @@ class HeaderError(ValueError):
         super().__init__(f"CSV header mismatch: expected columns {expected!r}, found {found!r}")
 
 
+class CsvDecodeError(ValueError):
+    """Raised when an uploaded file is not valid UTF-8 text.
+
+    Uploads must be UTF-8-encoded CSV (a UTF-8 BOM is tolerated). Binary
+    files or files in other encodings raise this error, which the API maps
+    to a ``400`` problem response — the upload is rejected as "not a CSV"
+    per the ingest contract, and no previously loaded data is affected.
+    """
+
+    def __init__(self, position: int) -> None:
+        """Initialize the error with the byte position of the failure.
+
+        Args:
+            position: Approximate byte offset at which decoding failed.
+        """
+        self.position = position
+        super().__init__(
+            f"File is not valid UTF-8 text (decode error near byte {position}); "
+            "expected a UTF-8-encoded CSV file"
+        )
+
+
 def _decoded_lines(file: IO[bytes]) -> Iterator[str]:
     """Decode a binary stream to text lines without taking ownership of it.
 
@@ -92,9 +114,17 @@ def _decoded_lines(file: IO[bytes]) -> Iterator[str]:
     Yields:
         The file's contents, decoded with :data:`ENCODING`, one line at a
         time.
+
+    Raises:
+        CsvDecodeError: If a line is not valid UTF-8.
     """
+    consumed = 0
     for line in file:
-        yield line.decode(ENCODING)
+        try:
+            yield line.decode(ENCODING)
+        except UnicodeDecodeError as exc:
+            raise CsvDecodeError(consumed + exc.start) from exc
+        consumed += len(line)
 
 
 def read_rows(file: IO[bytes], dataset: DatasetKind) -> Iterator[tuple[int, dict[str, str]]]:

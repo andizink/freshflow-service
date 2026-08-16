@@ -20,8 +20,10 @@ DOCS_DIR = REPO_ROOT / "docs"
 ADR_DIR = DOCS_DIR / "adr"
 
 #: Minimum number of ADR files required (PLAN.md §2, §2.1: ADR-001..012,
-#: plus ADR-013/014 for in-flight decisions).
-MIN_ADR_COUNT = 14
+#: plus ADR-013/014 for in-flight decisions, and ADR-015/016 added at
+#: Phase 4 finalization for ingest report semantics and upload size
+#: enforcement).
+MIN_ADR_COUNT = 16
 
 #: Section headings every ADR must contain, in MADR style (PLAN.md §2).
 REQUIRED_ADR_HEADINGS = (
