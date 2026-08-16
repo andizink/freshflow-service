@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>FreshFlow — Architecture Diagrams</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.6.0/mermaid.min.js"></script>
+<style>
+ body{font-family:-apple-system,'Segoe UI',sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem;color:#1a1a2e}
+ h1{font-size:1.5rem} h2{font-size:1.1rem;border-bottom:1px solid #ddd;padding-bottom:.3rem;margin-top:2.5rem}
+ section{margin-bottom:1rem} .mermaid{background:#fafafa;border:1px solid #eee;border-radius:8px;padding:1rem;overflow-x:auto}
+</style></head><body>
+<h1>FreshFlow Service — Architecture Diagrams</h1>
+<p>Rendered from <code>docs/ARCHITECTURE.md</code> (5 diagrams).</p>
+<section><h2>1. Container / context view</h2><pre class="mermaid">flowchart LR
+    client[&quot;API client\n(curl / Swagger UI / script)&quot;]
+
+    subgraph container[&quot;Docker container&quot;]
+        api[&quot;FreshFlow Service\n(FastAPI + Uvicorn)&quot;]
+        db[(&quot;SQLite database file\n/data/freshflow.db&quot;)]
+        api -- &quot;SQLAlchemy\n(reads &amp; writes)&quot; --&gt; db
+    end
+
+    volume[(&quot;Mounted volume\n(persists across restarts)&quot;)]
+
+    client -- &quot;POST /api/v1/ingest/{dataset}\nmultipart CSV file&quot; --&gt; api
+    client -- &quot;GET /api/v1/stores/{store_id}/recommendations?day=...\nGET /api/v1/stores\nGET /health&quot; --&gt; api
+    api -- &quot;JSON: ingest report /\nrecommendations / problem+json errors&quot; --&gt; client
+    db -.-&gt; volume
+</pre></section>
+<section><h2>2. Component view</h2><pre class="mermaid">flowchart TD
+    subgraph routers[&quot;Routers (app/ingest/router.py, app/recommendations/router.py, app/stores/router.py)&quot;]
+        ingest_router[&quot;ingest router&quot;]
+        rec_router[&quot;recommendations router&quot;]
+        stores_router[&quot;stores router&quot;]
+    end
+
+    subgraph services[&quot;Services (orchestration, transaction boundary)&quot;]
+        ingest_service[&quot;app.ingest.service\ningest_dataset()&quot;]
+        rec_service[&quot;app.recommendations.service\nget_recommendations()&quot;]
+    end
+
+    subgraph pure[&quot;Pure logic (no I/O)&quot;]
+        parser[&quot;app.ingest.parser\nread_rows() / header validation&quot;]
+        normalize[&quot;app.ingest.normalize\nN1-N6 functions&quot;]
+        rules[&quot;app.ingest.rules\nprocess_row() / key_for()\nQ1,Q2,Q3,Q5 + N7 dedup key&quot;]
+    end
+
+    subgraph persistence[&quot;Persistence&quot;]
+        models[&quot;app.models\nItem / InventoryRecord / OrderableItem /\nOrderRecommendation / IngestJob / QuarantineRow&quot;]
+        db[&quot;app.db\nengine, session factory, Base&quot;]
+    end
+
+    ingest_router --&gt; ingest_service
+    rec_router --&gt; rec_service
+    stores_router --&gt; models
+
+    ingest_service --&gt; parser
+    ingest_service --&gt; rules
+    rules --&gt; normalize
+    ingest_service --&gt; models
+
+    rec_service --&gt; models
+    models --&gt; db
+</pre></section>
+<section><h2>3. Data model (ER diagram)</h2><pre class="mermaid">erDiagram
+    ITEMS {
+        int item_number PK
+        string name
+        string category
+        bool is_bio
+        decimal purchase_price
+        decimal suggested_retail_price
+    }
+    INVENTORY_RECORDS {
+        int id PK
+        string store_id
+        int item_number
+        date day
+        decimal quantity
+    }
+    ORDERABLE_ITEMS {
+        int id PK
+        string store_id
+        int item_number
+        date ordering_day
+        date delivery_day
+        decimal purchase_price
+        decimal suggested_retail_price
+        decimal profit_margin
+        json tags
+        string category
+    }
+    ORDER_RECOMMENDATIONS {
+        int id PK
+        string store_id
+        int item_number
+        date ordering_day
+        date delivery_day
+        int recommended_quantity
+    }
+    INGEST_JOBS {
+        string ingest_id PK
+        string dataset
+        datetime created_at
+        json report
+    }
+    QUARANTINE_ROWS {
+        int id PK
+        string ingest_id FK
+        int row_number
+        json raw_row
+        json reasons
+    }
+
+    ITEMS ||--o{ INVENTORY_RECORDS : &quot;item_number (logical)&quot;
+    ITEMS ||--o{ ORDERABLE_ITEMS : &quot;item_number (logical)&quot;
+    ITEMS ||--o{ ORDER_RECOMMENDATIONS : &quot;item_number (logical)&quot;
+    INGEST_JOBS ||--o{ QUARANTINE_ROWS : &quot;ingest_id&quot;
+</pre></section>
+<section><h2>4. Ingest sequence</h2><pre class="mermaid">sequenceDiagram
+    actor Client
+    participant Router as ingest router
+    participant Service as ingest_dataset()
+    participant Parser as parser.read_rows()
+    participant Rules as rules.process_row() / key_for()
+    participant DB as SQLAlchemy session (transaction)
+
+    Client-&gt;&gt;Router: POST /api/v1/ingest/{dataset}\n(multipart CSV file)
+    Router-&gt;&gt;Service: ingest_dataset(session, dataset, file)
+    Service-&gt;&gt;Parser: read_rows(file, dataset)
+    Parser--&gt;&gt;Service: header validated,\nstream of (row_number, raw_row)
+
+    loop for each raw row
+        Service-&gt;&gt;Rules: process_row(dataset, raw_row, known_items)
+        Rules--&gt;&gt;Service: ProcessedRow\n(values | reasons, normalizations, warnings)
+        alt row accepted
+            Service-&gt;&gt;Rules: key_for(dataset, values)
+            Rules--&gt;&gt;Service: natural key
+            alt key already seen this run, identical payload
+                Service-&gt;&gt;Service: count as deduplicated (N7)
+            else key already seen, differing payload
+                Service-&gt;&gt;Service: mark conflicting_duplicate (Q4),\nkeep first, quarantine both raw rows
+            else new key
+                Service-&gt;&gt;Service: accumulate row for insert
+            end
+        else row quarantined (Q1/Q2/Q3/Q5)
+            Service-&gt;&gt;Service: accumulate quarantine reasons + raw row
+        end
+    end
+
+    Service-&gt;&gt;DB: BEGIN transaction
+    DB-&gt;&gt;DB: DELETE existing rows for dataset
+    DB-&gt;&gt;DB: bulk INSERT accepted rows
+    DB-&gt;&gt;DB: INSERT IngestJob (report JSON)
+    DB-&gt;&gt;DB: INSERT QuarantineRow(s)
+    DB-&gt;&gt;Service: COMMIT
+    Service--&gt;&gt;Router: IngestReport
+    Router--&gt;&gt;Client: 200 OK, IngestReport JSON
+</pre></section>
+<section><h2>5. Request flow: `GET /api/v1/stores/{store_id}/recommendations`</h2><pre class="mermaid">sequenceDiagram
+    actor Client
+    participant Router as recommendations router
+    participant Service as get_recommendations()
+    participant DB as database
+
+    Client-&gt;&gt;Router: GET /stores/{store_id}/recommendations?day=YYYY-MM-DD
+    Router-&gt;&gt;Service: get_recommendations(session, store_id, day)
+    Service-&gt;&gt;Service: normalize_store_id(store_id)\n(N1: strip + lowercase)
+    Service-&gt;&gt;DB: does normalized store_id have\nany records in any dataset?
+    alt store unknown
+        DB--&gt;&gt;Service: no
+        Service--&gt;&gt;Router: raise StoreNotFoundError
+        Router--&gt;&gt;Client: 404 problem+json
+    else store known
+        DB--&gt;&gt;Service: yes
+        Service-&gt;&gt;DB: fetch order_recommendations\nfor (store_id, ordering_day=day)
+        DB--&gt;&gt;Service: recommendation rows (possibly empty)
+        Service-&gt;&gt;DB: enrich: join items (name, category, is_bio)
+        Service-&gt;&gt;DB: enrich: join inventory_records\n(store_id, item_number, day)\n-&gt; current_inventory (rounded)
+        Service-&gt;&gt;DB: enrich: join orderable_items\n(store_id, item_number, ordering_day)\n-&gt; orderable, tags,\nprice/category overrides
+        Service--&gt;&gt;Router: RecommendationsResponse\n(count may be 0)
+        Router--&gt;&gt;Client: 200 OK, JSON
+    end
+</pre></section>
+<script>mermaid.initialize({startOnLoad:true,theme:'neutral'});</script>
+</body></html>

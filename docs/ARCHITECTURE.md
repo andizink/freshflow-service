@@ -5,7 +5,9 @@ internal package structure, its data model, and the two behaviors most
 worth understanding precisely: how ingest achieves atomic replace-per-dataset
 semantics, and how tests get an isolated database without the application
 code having to know it's under test. Diagrams are Mermaid; render them with
-any Mermaid-aware viewer (GitHub renders them natively) or `mmdc`.
+any Mermaid-aware viewer (GitHub renders them natively) or `mmdc` — or open
+[diagrams.html](diagrams.html), a pre-rendered standalone copy of all five
+diagrams that works in any browser.
 
 For the domain background and the data-quality rationale behind the ingest
 pipeline, see [PROBLEM_ANALYSIS.md](PROBLEM_ANALYSIS.md),
