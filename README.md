@@ -154,12 +154,12 @@ uv run pytest -m smoke   # requires a working Docker daemon; builds and runs the
 
 ## Testing
 
-399 tests total, organized as a pyramid:
+416 tests total, organized as a pyramid:
 
 | Layer | Count | What it covers |
 |---|---|---|
-| Unit (`tests/unit/`) | 354 | Pure functions — normalization rules N1–N7, quarantine rules Q1–Q5, dedup key, CSV header parsing — table-driven, no DB/HTTP. |
-| Integration (`tests/integration/`) | 38 | 25 exercise the ingest endpoint end-to-end against an isolated test DB (atomic replace, reports, quarantine pagination); 13 exercise the recommendations/stores/health endpoints (joins, 404s, enrichment). |
+| Unit (`tests/unit/`) | 366 | Pure functions — normalization rules N1–N7, quarantine rules Q1–Q5, dedup key, CSV header parsing — table-driven, no DB/HTTP — plus the traceability and docs meta-tests. |
+| Integration (`tests/integration/`) | 43 | 29 exercise the ingest endpoint end-to-end against an isolated test DB (atomic replace, reports, quarantine pagination bounds, encoding rejection); 13 exercise the recommendations/stores/health endpoints (joins, 404s, enrichment); 1 pins the committed OpenAPI snapshot. |
 | E2E (`tests/e2e/`) | 6 | The real `data/*.csv` files ingested in order and checked against pinned counts (`tests/e2e/expected_counts.json`, generated independently by `scripts/generate_expected_counts.py`, a standalone re-derivation of the N1–N7/Q1–Q5 rules with no import of `app/`). |
 | Smoke (`tests/e2e/test_container_smoke.py`) | 1 (skipped locally) | Builds the production Docker image, runs it, ingests + queries through the real container, inspects it for the non-root user and healthcheck. Skips with `pytest.skip` when no Docker daemon is reachable (always true in this sandbox); runs for real in CI's `docker` job. |
 

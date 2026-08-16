@@ -23,7 +23,7 @@ ADR_DIR = DOCS_DIR / "adr"
 #: plus ADR-013/014 for in-flight decisions, and ADR-015/016 added at
 #: Phase 4 finalization for ingest report semantics and upload size
 #: enforcement).
-MIN_ADR_COUNT = 16
+MIN_ADR_COUNT = 17
 
 #: Section headings every ADR must contain, in MADR style (PLAN.md §2).
 REQUIRED_ADR_HEADINGS = (

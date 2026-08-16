@@ -28,7 +28,7 @@ derived twice rather than copied from the ingest implementation itself.
 | **D7** | Exact duplicate rows (identical key, identical payload) | all per-store files | 610 keys (120 inventory + 295 order_recommendations + 195 orderable_items) | **N7** — keep first occurrence, count the rest as deduplicated | Deduplicated, counted in `IngestReport.deduplicated_rows`; a duplicate key with a *differing* payload is **Q4** `conflicting_duplicate` instead (first loaded, both raw versions quarantined) | `app.ingest.rules.key_for` (dedup detection in `app.ingest.service.ingest_dataset`) | `tests/unit/test_n7_q4_dedup_key.py` |
 | **D8** | Casing/whitespace noise in categories, tags, and names — `FRUITS`, `"new  "`, `"Cucumber  "` | `items.csv`, `orderable_items.csv` | ~1,500 values | **N4** (category/tag canonicalization) and **N5** (free-text whitespace stripping) | Normalized, counted as `casing_normalized` / `value_whitespace_stripped` | `app.ingest.normalize.normalize_category`, `app.ingest.normalize.normalize_tags`, `app.ingest.normalize.strip_text` | `tests/unit/test_n4_category_tags.py`, `tests/unit/test_n5_text_fields.py` |
 | **D9** | Recommendations without a matching orderable window | cross-file (`order_recommendations.csv` ↔ `orderable_items.csv`) | 327 recommendation keys with no window in the raw data *after normalization* (0 windows lack a recommendation; the oft-quoted ≈3,600/≈3,300 figures are artifacts of comparing unnormalized strings). The ingest warning reports 1,223 because it compares **loaded** rows: 1,909 windows are quarantined by D6/D10, so recommendations pointing at them become window-less in the loaded set | *(none — not a row-level defect)* | Loaded as-is; surfaced as an `orderable: false` flag at query time and a `warnings` entry on the `order_recommendations` ingest report — not a quarantine condition, since nothing about the row is individually invalid | `app.recommendations.service.get_recommendations` (join), `app.ingest.service.ingest_dataset` (warning) | `tests/integration/test_ingest.py`, `tests/integration/test_query_recommendations.py` |
-| **D10** | Orderable window with an empty `purchase_price` (and, on the same rows, an empty `profit_margin`) | `orderable_items.csv` | 1,299 rows | *(none — a missing required field, not a repair)* | **Q3** `missing_field` — a purchasable window without a purchase price cannot be priced or margined and is unusable for ordering decisions; the co-occurrence of both blank fields on exactly these rows points to an upstream export bug. Quarantined, recoverable by re-ingesting once the export is fixed | `app.ingest.rules.process_row` (`_decimal`) | `tests/unit/test_q3_invalid_value_missing_field.py` |
+| **D10** | Orderable window with an empty `purchase_price` (and, on the same rows, an empty `profit_margin`) | `orderable_items.csv` | 1,299 rows | *(none — a missing required field, not a repair)* | **Q3** `missing_field` — a purchasable window without a purchase price cannot be priced or margined and is unusable for ordering decisions; the co-occurrence of both blank fields on exactly these rows points to an upstream export bug. Quarantined, recoverable by re-ingesting once the export is fixed (decision record: ADR-017) | `app.ingest.rules.process_row` (`_decimal`) | `tests/unit/test_q3_invalid_value_missing_field.py` |
 
 Two rules exist that are not driven by a single numbered defect in the
 D1–D10 catalog, because they describe row-level conditions found during
@@ -57,11 +57,12 @@ implements it (`app/ingest/normalize.py`, `app/ingest/rules.py`), per the
 project's documentation standard (PLAN.md §2.2) — this file, the code, and
 the test suite are kept in agreement by a dedicated traceability meta-test
 (`tests/unit/test_traceability.py`, PLAN.md §6.1) that asserts every rule ID
-N1–N7/Q1–Q5 appears in at least one `app/ingest` module docstring and is
-visible (by file name or docstring) in at least one `tests/unit` module —
-deliberately an "appears somewhere" check rather than an "exactly one"
-check, since a rule's implementation may legitimately span
-`normalize.py`, `rules.py`, and `service.py`.
+N1–N7/Q1–Q5 appears in at least one `app/ingest` module docstring, is
+visible (by file name or docstring) in at least one `tests/unit` module,
+and — via a pinned `RULE_OWNERS` table — is cited by *exactly* the
+canonical set of public functions that own it, so any drift in rule
+ownership (a new public function claiming a rule, or an owner dropping its
+citation) fails the build and must be updated deliberately.
 
 ---
 
