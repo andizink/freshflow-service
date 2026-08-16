@@ -80,27 +80,14 @@ jobs:
           dockerfile: Dockerfile
 
       - name: Build image
-        run: docker build -t freshflow-service:ci .
+        run: docker build -t freshflow-service:smoke-test .
 
-      - name: Run container
-        run: |
-          docker run -d --name freshflow -p 8000:8000 freshflow-service:ci
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:8000/health; then break; fi
-            sleep 1
-          done
-          curl -sf http://localhost:8000/health
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv python pin 3.12
+      - run: uv sync --all-groups
 
-      - name: Ingest challenge data and query recommendations
-        run: |
-          chmod +x scripts/load_all.sh
-          BASE_URL=http://localhost:8000 ./scripts/load_all.sh
-
-      - name: Inspect image hygiene (non-root, healthcheck)
-        run: |
-          docker inspect freshflow-service:ci --format '{{ .Config.User }}' | grep -qv '^$'
-          docker inspect freshflow-service:ci --format '{{ .Config.Healthcheck }}' | grep -q 'CMD'
-
-      - name: Stop container
-        if: always()
-        run: docker rm -f freshflow || true
+      - name: Container smoke test (build/run/ingest/query/inspect, cleans up itself)
+        run: uv run pytest -m smoke -q
