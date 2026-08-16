@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  UV_VERSION: "0.8.x"
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv python pin 3.12
+      - run: uv sync --all-groups
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  typecheck:
+    name: typecheck
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv python pin 3.12
+      - run: uv sync --all-groups
+      - run: uv run mypy
+
+  test:
+    name: test
+    needs: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv python pin 3.12
+      - run: uv sync --all-groups
+      - run: >
+          uv run pytest -m "not e2e and not smoke"
+          --cov=app --cov-branch --cov-fail-under=90
+
+  e2e:
+    name: e2e
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv python pin 3.12
+      - run: uv sync --all-groups
+      - run: uv run pytest -m e2e
+
+  docker:
+    name: docker
+    needs: e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+
+      - name: Build image
+        run: docker build -t freshflow-service:ci .
+
+      - name: Run container
+        run: |
+          docker run -d --name freshflow -p 8000:8000 freshflow-service:ci
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health; then break; fi
+            sleep 1
+          done
+          curl -sf http://localhost:8000/health
+
+      - name: Ingest challenge data and query recommendations
+        run: |
+          chmod +x scripts/load_all.sh
+          BASE_URL=http://localhost:8000 ./scripts/load_all.sh
+
+      - name: Inspect image hygiene (non-root, healthcheck)
+        run: |
+          docker inspect freshflow-service:ci --format '{{ .Config.User }}' | grep -qv '^$'
+          docker inspect freshflow-service:ci --format '{{ .Config.Healthcheck }}' | grep -q 'CMD'
+
+      - name: Stop container
+        if: always()
+        run: docker rm -f freshflow || true

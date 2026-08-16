@@ -1,0 +1,51 @@
+item_number,name,category,is_bio,purchase_price,suggested_retail_price
+1001,Organic Bananas,Fruits,False,0.89,1.49
+1002,Red Apples Gala,Fruits,False,1.2,1.99
+1003,Avocado Hass,Fruits,True,0.95,1.79
+1004,Strawberries 500g,Fruits,False,1.5,2.99
+1005,Blueberries 125g,Fruits,False,1.1,2.49
+1006,Lemons Net 500g,Fruits,False,0.8,1.29
+1007,Mango Kent,Fruits,False,1.3,2.49
+1008,Grapes White Seedless,Fruits,False,1.4,2.79
+1009,Oranges Navel,Fruits,False,0.7,1.19
+1010,Pineapple Whole,Fruits,False,1.8,3.49
+1011,Watermelon Mini,Fruits,False,2.2,3.99
+1012,Raspberries 125g,Fruits,False,1.6,2.99
+1013,Kiwi Green,Fruits,False,0.35,0.69
+1014,Pears Conference,Fruits,False,0.9,1.59
+1015,Clementines Net 1kg,Fruits,False,1.2,2.29
+1016,Passion Fruit,Fruits,False,0.75,1.49
+1017,Pomegranate,fruits,False,1.4,2.49
+1018,Cherries 500g,FRUITS,False,2.5,4.49
+1019,Plums Red 500g,Fruits,False,1.0,1.89
+1020,Coconut Fresh,Fruits,False,1.5,2.79
+1021,Grapefruit Pink,Fruits,False,0.65,1.19
+1022,Lychees 200g,Fruits,False,1.8,3.29
+1023,Papaya,Fruits,False,1.9,3.49
+1024,Nectarines 500g,Fruits,False,1.3,2.49
+1025,Figs Fresh 4-pack,fruits,True,2.0,3.79
+1026,Iceberg Lettuce,Vegetables,False,0.45,0.89
+1027,Cherry Tomatoes 250g,Vegetables,False,0.9,1.69
+1028,Cucumber  ,Vegetables,False,0.3,0.59
+1029,Bell Pepper Red,Vegetables,False,0.55,1.09
+1030,Carrots 1kg,Vegetables,False,0.6,0.99
+1031,Broccoli,Vegetables,False,0.75,1.49
+1032,Zucchini,Vegetables,False,0.5,0.99
+1033,Baby Spinach 150g,Vegetables,True,1.0,1.99
+1034,Mushrooms White 250g,Vegetables,False,0.85,1.59
+1035,Sweet Potato,Vegetables,False,0.65,1.29
+1036,Red Onion Net 1kg,Vegetables,False,0.55,0.99
+1037,Garlic Head,Vegetables,False,0.25,0.49
+1038,Cauliflower,Vegetables,False,0.8,1.59
+1039,Green Beans 250g,Vegetables,False,0.95,1.79
+1040,Corn on the Cob 2-pack,Vegetables,False,0.7,1.29
+1041,Asparagus Green 500g,Vegetables,True,2.5,4.49
+1042,Radishes Bunch,Vegetables,False,0.4,0.79
+1043,Fennel Bulb,Vegetables,False,0.65,1.19
+1044,Beetroot 500g,Vegetables,False,0.55,0.99
+1045,Eggplant  ,Vegetables,False,0.7,1.29
+1046,Celery Stalk  ,Vegetables,False,0.6,1.09
+1047,Pak Choi  ,Vegetables,False,0.75,1.39
+1048,Leek,Vegetables,False,0.5,0.99
+1049,Kohlrabi,Vegetables,False,0.45,0.89
+1050,Romanesco,Vegetables,False,1.2,2.29
