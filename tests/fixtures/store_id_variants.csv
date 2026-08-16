@@ -1,0 +1,4 @@
+store_id,item_number,ordering_day,delivery_day,recommended_quantity
+ STORE_A ,1001,2024-01-01,2024-01-02,5
+STORE_A,1002,2024-01-01,2024-01-02,6
+store_a,1003,2024-01-01,2024-01-02,7

@@ -5,6 +5,7 @@ from datetime import date
 from fastapi import APIRouter
 
 from app.db import SessionDep
+from app.recommendations.service import get_recommendations
 from app.schemas.recommendations import RecommendationsResponse
 
 router = APIRouter(tags=["recommendations"])
@@ -28,6 +29,8 @@ async def get_store_recommendations(
         The enriched recommendations response.
 
     Raises:
-        NotImplementedError: Always; this is a frozen contract stub.
+        StoreNotFoundError: If ``store_id`` (after normalization) has no
+            records in any dataset; mapped to a 404 problem response by
+            the app-level exception handler in ``app.main``.
     """
-    raise NotImplementedError
+    return get_recommendations(session, store_id, day)

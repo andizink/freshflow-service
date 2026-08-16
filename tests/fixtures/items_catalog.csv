@@ -1,0 +1,11 @@
+item_number,name,category,is_bio,purchase_price,suggested_retail_price
+1001,Organic Bananas,Fruits,False,0.89,1.49
+1002,Red Apples,Fruits,False,1.20,1.99
+1003,Avocado Hass,Vegetables,True,0.95,1.79
+1004,Cucumber,Vegetables,False,0.50,0.99
+1005,Carrots,Vegetables,False,0.30,0.60
+1006,Strawberries,Fruits,False,1.50,2.99
+1007,Blueberries,Fruits,True,2.10,3.49
+1008,Broccoli,Vegetables,False,0.99,1.79
+1009,Spinach,Vegetables,True,1.10,1.99
+1010,Tomatoes,Vegetables,False,0.79,1.39
