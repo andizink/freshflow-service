@@ -6,11 +6,9 @@ FastAPI ``TestClient`` against handcrafted fixture CSVs in
 report-retrieval, quarantine-audit, error, replace-idempotency, and
 atomicity behaviors required by PLAN.md §3.1/§3.3.
 
-Depends on ``app.ingest.normalize``/``app.ingest.rules`` (A2's frozen-stub
-lane). If those still raise ``NotImplementedError`` when this module is
-collected, every test below fails with that error surfacing through
-``ingest_dataset`` - expected until A2's lane lands; see the handoff
-report for which tests are blocked.
+Each fixture file isolates a single defect class so a failure points at
+exactly one rule; the expected report numbers are asserted exactly, not
+just "some rows were quarantined".
 """
 
 from pathlib import Path
@@ -545,7 +543,7 @@ def test_replace_load_removes_rows_not_in_new_file(client: TestClient, session: 
 def test_non_utf8_upload_returns_400_and_leaves_data_intact(
     client: TestClient, session: Session
 ) -> None:
-    """A non-UTF-8 file is rejected with 400 problem+json, atomically (F1).
+    """A non-UTF-8 file is rejected with 400 problem+json, atomically.
 
     The valid header is followed by bytes that cannot decode as UTF-8; the
     response must be a 400 ``Invalid CSV encoding`` problem detail, and data
@@ -581,7 +579,7 @@ def test_non_utf8_upload_returns_400_and_leaves_data_intact(
 def test_quarantine_pagination_rejects_non_positive_bounds(
     client: TestClient, query: str, field: str
 ) -> None:
-    """Negative/zero limit and negative offset are rejected with 422 (F2).
+    """Negative/zero limit and negative offset are rejected with 422.
 
     A negative ``LIMIT`` would disable SQLite's row cap entirely, silently
     bypassing the 1000-row page ceiling.

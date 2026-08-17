@@ -3,16 +3,26 @@
 A small FastAPI service that ingests four messy grocery-retail CSV exports
 (`items`, `inventory`, `orderable_items`, `order_recommendations`) and
 serves, per store and ordering day, the enriched list of recommended order
-quantities. The real substance of the challenge isn't the two endpoints —
-it's the data underneath them: ~76,000 rows of realistic, deliberately dirty
-export data (inconsistent store-ID casing, two date formats, negative
-quantities, unknown item references, empty prices, exact duplicates). The
-pipeline's philosophy is **normalize what is unambiguous, quarantine what
-isn't, and report everything**: every upload returns a machine-readable
-report of what was repaired and why, and every quarantined row stays
-retrievable via the API for audit — nothing is silently dropped or silently
-guessed at. See [docs/PROBLEM_ANALYSIS.md](docs/PROBLEM_ANALYSIS.md) for the
+quantities.
+
+The two endpoints are not the hard part. The data underneath them is:
+~76,000 rows of realistic, deliberately dirty export data, with
+inconsistent store-ID casing, two date formats in one column, negative
+quantities, references to items missing from the catalog, empty prices and
+exact duplicates. So the pipeline **normalizes what is unambiguous,
+quarantines what isn't, and reports everything**. Every upload returns a
+machine-readable report of what was repaired and why, and every quarantined
+row stays retrievable via the API for audit. Nothing is dropped or guessed
+at silently. [docs/PROBLEM_ANALYSIS.md](docs/PROBLEM_ANALYSIS.md) has the
 full reasoning.
+
+## How this was built
+
+[docs/APPROACH.md](docs/APPROACH.md) records how this repository was
+actually produced: the data profiling that came before any design work, the
+AI-assisted implementation and how it was directed, and the review passes
+the result went through. It is there for transparency about method; the
+service itself should stand on its own.
 
 ## Quickstart (Docker)
 
@@ -24,7 +34,7 @@ docker run -p 8000:8000 freshflow
 The service is now listening on `http://localhost:8000`; interactive docs
 are at `http://localhost:8000/docs`. The SQLite database defaults to
 `/data/freshflow.db` *inside* the container, so it does not survive
-`docker run` on its own — mount a volume to persist it across restarts:
+`docker run` on its own. Mount a volume to persist it across restarts:
 
 ```bash
 docker run -p 8000:8000 \
@@ -117,9 +127,9 @@ curl -sS "http://localhost:8000/api/v1/stores/store_a/recommendations?day=2024-0
 }
 ```
 
-All example output above was captured from a real local run
+Every example response above was captured from a real local run
 (`uv run uvicorn app.main:app --port 8123`, then ingesting `data/*.csv` and
-querying), not hand-written.
+querying). None of it is hand-written.
 
 ## API overview
 
@@ -154,21 +164,21 @@ uv run pytest -m smoke   # requires a working Docker daemon; builds and runs the
 
 ## Testing
 
-416 tests total, organized as a pyramid — a plain-language description of
+416 tests total, organized as a pyramid. A plain-language description of
 every integration and e2e case is in [docs/TEST_PLAN.md](docs/TEST_PLAN.md):
 
 | Layer | Count | What it covers |
 |---|---|---|
-| Unit (`tests/unit/`) | 366 | Pure functions — normalization rules N1–N7, quarantine rules Q1–Q5, dedup key, CSV header parsing — table-driven, no DB/HTTP — plus the traceability and docs meta-tests. |
+| Unit (`tests/unit/`) | 366 | Pure functions: normalization rules N1–N7, quarantine rules Q1–Q5, dedup key, CSV header parsing. Table-driven, no DB or HTTP. Includes the traceability and docs meta-tests. |
 | Integration (`tests/integration/`) | 43 | 29 exercise the ingest endpoint end-to-end against an isolated test DB (atomic replace, reports, quarantine pagination bounds, encoding rejection); 13 exercise the recommendations/stores/health endpoints (joins, 404s, enrichment); 1 pins the committed OpenAPI snapshot. |
 | E2E (`tests/e2e/`) | 6 | The real `data/*.csv` files ingested in order and checked against pinned counts (`tests/e2e/expected_counts.json`, generated independently by `scripts/generate_expected_counts.py`, a standalone re-derivation of the N1–N7/Q1–Q5 rules with no import of `app/`). |
-| Smoke (`tests/e2e/test_container_smoke.py`) | 1 (skipped locally) | Builds the production Docker image, runs it, ingests + queries through the real container, inspects it for the non-root user and healthcheck. Skips with `pytest.skip` when no Docker daemon is reachable (always true in this sandbox); runs for real in CI's `docker` job. |
+| Smoke (`tests/e2e/test_container_smoke.py`) | 1 (skipped locally) | Builds the production Docker image, runs it, ingests + queries through the real container, then inspects it for the non-root user and healthcheck. Skips with `pytest.skip` when no Docker daemon is reachable (always true in this sandbox); runs for real in CI's `docker` job. |
 
 Measured branch coverage: **97%** (`--cov-branch`, CI gate is `--cov-fail-under=90`).
 
 ## Design
 
-The four files carry realistic export defects — measured by profiling the
+The four files carry realistic export defects, measured by profiling the
 real data and independently re-verified by `scripts/generate_expected_counts.py`
 against `tests/e2e/expected_counts.json` (the authoritative source for every
 count below). Headline numbers from that file:
@@ -180,14 +190,14 @@ count below). Headline numbers from that file:
 | `orderable-items` | 25,200 | 23,139 | 186 | 1,875 (1,299 `missing_field` + 610 `unknown_item`) |
 | `order-recommendations` | 25,627 | 23,900 | 286 | 1,441 (515 `negative_quantity` + 941 `unknown_item`) |
 
-The guiding rule, applied case by case: **repair only what has exactly one
-reasonable interpretation (safe normalization); set aside anything else
-with a reason code (quarantine); never lose data silently.** For example, a
-store ID spelled `" STORE_A "` is unambiguously `store_a` (normalized); a
-recommendation to order `-5` pieces has no defensible correct value
-(quarantined, reason `negative_quantity`); an `orderable_items` row with no
-`purchase_price` can't be priced and is quarantined as `missing_field`
-rather than defaulting to a made-up `0.00`.
+The rule, applied case by case: **repair only what has exactly one
+reasonable interpretation (safe normalization), set aside anything else
+with a reason code (quarantine), and never lose data silently.** A store ID
+spelled `" STORE_A "` is unambiguously `store_a`, so it gets normalized. A
+recommendation to order `-5` pieces has no defensible correct value, so it
+is quarantined with reason `negative_quantity`. An `orderable_items` row
+with no `purchase_price` can't be priced at all; it is quarantined as
+`missing_field` rather than defaulting to a made-up `0.00`.
 
 Full detail:
 
@@ -200,6 +210,6 @@ Full detail:
   package layering, data model, and the ingest/query sequence diagrams.
 - [docs/DATA_QUALITY.md](docs/DATA_QUALITY.md) — the formal defect → rule →
   implementation → test traceability matrix.
-- [docs/adr/](docs/adr/) — 16 architecture decision records covering every
+- [docs/adr/](docs/adr/) — 17 architecture decision records covering every
   non-obvious design choice (storage, error format, decimal handling,
   ingest report semantics, upload size enforcement, and more).

@@ -1,8 +1,9 @@
 """Integration tests for ``GET /api/v1/stores/{store_id}/recommendations``.
 
-Seeds the isolated test database directly through the ORM models (per lane
-ownership rules, ingest is out of scope here) and exercises the endpoint
-through the FastAPI ``TestClient``.
+Seeds the isolated test database directly through the ORM models — going
+through the ingest pipeline here would couple these tests to ingest
+behavior, which has its own suite — and exercises the endpoint through
+the FastAPI ``TestClient``.
 """
 
 from datetime import date

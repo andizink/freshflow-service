@@ -66,8 +66,8 @@ def _adr_files() -> list[Path]:
     return sorted(ADR_DIR.glob("ADR-*.md"))
 
 
-def test_at_least_fourteen_adr_files_exist() -> None:
-    """docs/adr/ must contain at least 14 ADR files (PLAN.md §2, §8)."""
+def test_minimum_adr_count_is_met() -> None:
+    """docs/adr/ must contain at least MIN_ADR_COUNT ADR files (PLAN.md §2, §8)."""
     adr_files = _adr_files()
 
     assert len(adr_files) >= MIN_ADR_COUNT, (

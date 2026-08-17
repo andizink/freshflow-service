@@ -7,7 +7,8 @@ enforcement, the DB session dependency, and translating domain exceptions
 into RFC 9457 ``application/problem+json`` responses) to the service layer.
 
 Two error paths are handled directly here rather than via a global
-``app.main`` exception handler, since this lane does not own ``main.py``:
+``app.main`` exception handler, keeping ingest-specific error handling
+inside the ingest package:
 
 * Oversized uploads (413) are detected while streaming the multipart body,
   before the service layer ever sees the file.

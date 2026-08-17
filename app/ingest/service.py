@@ -45,11 +45,12 @@ _FRACTIONAL_QUANTITY_WARNING_KEY = "fractional_quantity"
 class IngestNotFoundError(LookupError):
     """Raised when a query targets an unknown ``ingest_id``.
 
-    Not registered as a global FastAPI exception handler in ``app/main.py``
-    (out of this lane's ownership); ``app/ingest/router.py`` catches this
-    directly and returns a 404 ``ProblemDetail`` response. See the
-    micro-ADR note in the A3 handoff report if centralizing this in
-    ``main.py`` is preferred later.
+    Deliberately not registered as a global FastAPI exception handler:
+    ``app/ingest/router.py`` catches it directly and returns a 404
+    ``ProblemDetail`` response, keeping the ingest package's error
+    handling local to the ingest package. Centralizing it in ``main.py``
+    would work too; local handling was kept to avoid a circular import
+    between ``main`` and this router.
 
     Attributes:
         ingest_id: The ingest run identifier that was not found.
