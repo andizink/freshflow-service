@@ -154,7 +154,8 @@ uv run pytest -m smoke   # requires a working Docker daemon; builds and runs the
 
 ## Testing
 
-416 tests total, organized as a pyramid:
+416 tests total, organized as a pyramid — a plain-language description of
+every integration and e2e case is in [docs/TEST_PLAN.md](docs/TEST_PLAN.md):
 
 | Layer | Count | What it covers |
 |---|---|---|
