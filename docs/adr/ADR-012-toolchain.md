@@ -3,6 +3,12 @@
 Status: Accepted
 Date: 2026-08-16
 
+> Note: this record absorbs former ADR-013 (FastAPI `Annotated`
+> dependencies), merged in the pre-submission editorial pass — that record
+> documented a lint-conformance style choice, which belongs with the
+> toolchain policy that forced it. The ADR numbering keeps its gap; nothing
+> was renumbered.
+
 ## Context
 
 The project needs a Python dependency manager, a lint/format tool, a static
@@ -30,7 +36,7 @@ work that a small co-located team might otherwise do by habit.
   missing annotations, implicit `Any` and type mismatches. That matters
   specifically because this codebase mixes ORM models, Pydantic schemas and
   plain functions, and the seams between them — `Decimal` vs. `float` at
-  the API boundary, ADR-014 — are exactly where type errors like to hide.
+  the API boundary, ADR-008 — are exactly where type errors like to hide.
   `pytest` (+`pytest-cov`) is the standard test runner, with a
   `-m e2e`/`-m smoke` marker split so CI stages can run subsets
   independently.
@@ -61,6 +67,20 @@ and formatting (`ruff check`, `ruff format --check`), **mypy --strict** on
 `app/`, and **pytest** + **pytest-cov** for testing, wired as blocking CI
 jobs (`lint` → `typecheck` → `test` → `e2e` → `docker`, PLAN.md §6.1).
 `hadolint` additionally lints the Dockerfile as part of the `docker` CI job.
+
+One style consequence of this policy is worth recording (formerly ADR-013):
+the mandated `bugbear` rule `B008` ("no function calls in argument
+defaults") flags FastAPI's traditional
+`def handler(session: Session = Depends(get_session))` idiom. Rather than
+carving a per-file lint exception, every dependency is declared once as an
+`Annotated[...]` type alias next to its provider
+(`SessionDep = Annotated[Session, Depends(get_session)]` in `app/db.py`)
+and handlers take it as a plain, un-defaulted parameter (`session:
+SessionDep`). This is FastAPI's current documented style, keeps the lint
+configuration uniform with no carve-outs, and means a future change to how
+sessions are provided touches one definition instead of every handler
+signature — at the small cost that a reader must follow the alias to see
+which provider is wired in.
 
 ## Consequences
 

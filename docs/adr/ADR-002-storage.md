@@ -72,5 +72,5 @@ What we accept in exchange:
   README's run instructions rather than hidden.
 - SQLite's type affinity is looser than PostgreSQL's, so the ORM layer has
   to be careful — explicit `Numeric` columns for `Decimal` fields, see
-  ADR-014 — to avoid silently losing precision a stricter database would
+  ADR-008 — to avoid silently losing precision a stricter database would
   have caught at write time.

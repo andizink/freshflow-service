@@ -19,11 +19,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DOCS_DIR = REPO_ROOT / "docs"
 ADR_DIR = DOCS_DIR / "adr"
 
-#: Minimum number of ADR files required (PLAN.md §2, §2.1: ADR-001..012,
-#: plus ADR-013/014 for in-flight decisions, and ADR-015/016 added at
-#: Phase 4 finalization for ingest report semantics and upload size
-#: enforcement).
-MIN_ADR_COUNT = 17
+#: Minimum number of ADR files required (PLAN.md §2, §2.1: ADR-001..012
+#: plus ADR-015/016/017 added at Phase 4 finalization; former ADR-013/014
+#: were merged into ADR-012/ADR-008 respectively in the pre-submission
+#: editorial pass, leaving a deliberate numbering gap).
+MIN_ADR_COUNT = 15
 
 #: Section headings every ADR must contain, in MADR style (PLAN.md §2).
 REQUIRED_ADR_HEADINGS = (
