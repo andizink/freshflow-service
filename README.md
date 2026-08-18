@@ -19,7 +19,7 @@ full reasoning.
 ## Reviewing this submission
 
 If you are evaluating this repo, start with
-**[docs/REVIEWER_GUIDE.md](docs/REVIEWER_GUIDE.md)** — it maps the review
+**[START_REVIEW_HERE.md](START_REVIEW_HERE.md)** — it maps the review
 into 10/30/90-minute paths, summarizes the five judgment calls that
 matter, and marks which documents are load-bearing versus appendix. And
 rather than trusting any number in this README, reproduce all of them
@@ -29,9 +29,10 @@ with one command:
 uv sync --all-groups && ./scripts/verify_claims.sh
 ```
 
-It prints PASS/FAIL for each headline claim (test count, coverage, the
-ingest table, the sample response below) in about two minutes, no Docker
-required.
+It prints PASS/FAIL for each of the eight claims C1–C8 spelled out in
+[START_REVIEW_HERE.md](START_REVIEW_HERE.md) (quality gates, test count,
+coverage, the ingest table, the sample response below) in about two
+minutes, no Docker required.
 
 ## How this was built
 

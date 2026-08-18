@@ -3,35 +3,34 @@
 I want to be upfront about the method before anything else: I built this
 solution by directing a team of AI coding agents. The problem analysis,
 the architecture decisions, the quality bar, the review process and the
-final sign-off are mine; large parts of the code and prose were produced
-by agents working to my specification, in parallel, and then reviewed —
-by another agent I pointed at the result adversarially, and by me.
+final sign-off are mine; all of the code and large parts of the prose were produced by agents working with me or to my specification, in parallel, 
+and then reviewed — by another agent I pointed at the result adversarially, 
+and by me.
 
 I'm sharing this document because I think *how* the work was directed is
-at least as relevant to a CTO conversation as the code itself. Below is
-what I actually did, in order, including the parts where my first
+at this point in time at least as relevant to a CTO conversation as the code itself. 
+Below is what I actually did, in order, including the parts where my initial
 assumptions turned out to be wrong.
 
-## 1. I profiled the data before designing anything
+## 1. I went through a data review process before designing anything
 
 The task description is two endpoints and a Dockerfile. That's not a
-CTO case. So before choosing a framework I ran a profiling pass over all
-four CSVs (~76,000 rows), and that changed everything: the files are
-systematically dirty. Eight spellings of the same store id. Item numbers
-as floats. Two date formats in one column. Negative order quantities.
-Items that don't exist in the catalog. Duplicates. Fractional "pieces".
+CTO case I am used, which are usually more system-design, architecture, secuity and compliance focused. So before choosing a framework I ran a profiling pass over all four CSVs (~76,000 rows), and and based on that made the basic assumption that the files are systematically dirty: 
+- Eight spellings of the same store id. 
+- Item numbers as floats. 
+- Two date formats in one column. 
+- Negative order quantities.
+- Items that don't exist in the catalog. 
+- Duplicates. 
+- Fractional "pieces".
 
-My read: the data is the actual test. A submission that pipes CSVs into
-a database either crashes on these rows or silently serves wrong
-answers, and both failure modes tell a hiring team what they need to
-know. So the core design principle came before any code:
+Therefore the data is the actual test. How the data is handled is most important, other aspects of the solution is less important. So I decided the core design principle before any code as:
 
-> Repair what has exactly one reasonable interpretation. Quarantine what
-> doesn't — never guess. Report everything, and keep the rejected rows
-> retrievable for audit.
+> Repair what has exactly one reasonable interpretation. Quarantine (so don't 
+> ignore) what doesn't — never guess. Report everything, and keep the rejected 
+> rows retrievable for audit.
 
-Everything else in the repo is that sentence applied case by case. The
-full defect catalog and the reasoning per defect is in
+The full defect catalog and the reasoning per defect is in
 [DATA_GUIDE.md](DATA_GUIDE.md) and [DATA_QUALITY.md](DATA_QUALITY.md).
 
 ## 2. The constraints I set
@@ -69,9 +68,8 @@ documentation), each owning an exclusive set of files. Merge conflicts
 weren't resolved; they were made structurally impossible. The full
 specification and the verbatim prompt that launched the team are
 appended as [PLAN.md](PLAN.md) and
-[KICKOFF_PROMPT.md](KICKOFF_PROMPT.md). One honest deviation from that
-prompt: it asked for one commit per lane, but the four parallel lanes
-landed merged as a single implementation commit — the phase structure
+[KICKOFF_PROMPT.md](KICKOFF_PROMPT.md). There were a few deviations from 
+that prompt, but by an dlarge it held up. One exception e.g.: it asked for one commit per lane, but the four parallel lanes ended up merged as a single implementation commit — the phase structure
 (scaffold → implement → e2e → review fixes → docs) is visible in the
 history, the per-lane boundaries are not. If you want to audit lane
 ownership, the exclusive file sets are specified in PLAN.md §7.1.
@@ -79,13 +77,12 @@ ownership, the exclusive file sets are specified in PLAN.md §7.1.
 **Capability matched to risk.** Not every task got the same model. The
 data-rules module — where a subtle mistake silently corrupts data — got
 a stronger model than the well-specified CRUD lanes. The strongest model
-I had went to the adversarial reviewer, on the theory that verification
-is the hardest job in the pipeline and a weak reviewer just
-rubber-stamps.
+I used went to the adversarial reviewer, on the theory that verification
+is the hardest job in the pipeline and a weak reviewer might miss important things and/or just rubber-stamps solution aspects.
 
 **Independent verification, twice.** The expected ingest numbers for the
-real files were derived two separate ways: once by the service, once by
-a standalone stdlib-only script
+real files were derived two separate ways, cause this is fundamental:
+ once by the service, once by a standalone stdlib-only script
 (`scripts/generate_expected_counts.py`) that reimplements the documented
 rules without importing any service code. The e2e suite asserts they
 agree exactly. Separately, a review pass re-derived the acceptance
@@ -94,8 +91,8 @@ inputs rather than trusting any agent's self-reported results.
 
 ## 4. What the review actually caught
 
-I think this is the strongest evidence the process works, so I'm not
-hiding it: the adversarial pass found ten confirmed problems in work
+I think this is the strongest evidence the process works, so I'm pointing 
+it out: the adversarial pass found ten confirmed problems in work
 that all prior gates had passed, including two real runtime defects —
 a non-UTF-8 upload returned a 500 instead of a clean 400, and a
 negative `limit` on the quarantine endpoint disabled SQLite's row cap
@@ -103,9 +100,10 @@ entirely, bypassing pagination. Both are fixed and both now have
 regression tests (`test_non_utf8_upload_returns_400_and_leaves_data_intact`,
 `test_quarantine_pagination_rejects_non_positive_bounds`).
 
-The same pass also caught *me*: several counts in my original planning
-estimates were wrong. Float-form item numbers are 1,994 rows, not the
-~650 I first estimated; unknown-item references are 2,181, not ~950;
+The same pass also caught errors in the original data assessment findings:
+several counts in my original planning estimates were wrong. 
+Float-form item numbers are 1,994 rows, not the
+ ~650 first estimated; unknown-item references are 2,181, not ~950;
 and my "3,600 referential gaps" figure turned out to be an artifact of
 comparing dirty strings — the true, normalized gap is 327 rows. An
 entire defect class (1,299 order windows with no purchase price) wasn't
