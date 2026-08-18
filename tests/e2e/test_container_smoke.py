@@ -1,7 +1,9 @@
 """Container smoke test: build the Docker image, run it, and exercise the API.
 
 Marked ``@pytest.mark.smoke`` (PLAN.md §6.1). Builds the production image
-with ``docker build``, runs it on a free host port with a fresh Docker
+with ``docker build``, runs it with a Docker-assigned host port (asking
+Docker to pick the port avoids guessing a "free" port from the host side,
+which Docker Desktop on macOS sometimes refuses to bind) and a fresh Docker
 volume mounted at ``/data`` (matching ``FRESHFLOW_DB_PATH=/data/freshflow.db``
 from the ``Dockerfile``), polls ``/health`` until the container is ready,
 ingests the four real ``data/`` CSVs plus one recommendations query through
@@ -24,7 +26,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import socket
 import subprocess
 import time
 import uuid
@@ -89,15 +90,54 @@ def _docker_available() -> bool:
     return True
 
 
-def _free_port() -> int:
-    """Find a currently-unused local TCP port.
+def _run_docker(args: list[str]) -> str:
+    """Run a docker CLI command, surfacing stderr in any failure.
+
+    ``subprocess.run(..., capture_output=True, check=True)`` swallows the
+    daemon's error message into an unread attribute, which turns a clear
+    failure ("port is not available", "no space left on device") into an
+    opaque ``CalledProcessError``. This wrapper re-raises with the captured
+    stderr in the message so a failing run is diagnosable from the pytest
+    output alone.
+
+    Args:
+        args: The full docker CLI argument list, including ``"docker"``.
 
     Returns:
-        A port number the OS reports as free at the moment of the call.
+        The command's stdout, stripped.
+
+    Raises:
+        RuntimeError: If the command exits non-zero, with stderr included.
     """
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return int(sock.getsockname()[1])
+    result = subprocess.run(args, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"{' '.join(args)} failed (exit {result.returncode}): {result.stderr.strip()}"
+        )
+    return result.stdout.strip()
+
+
+def _container_host_port(container_name: str) -> int:
+    """Return the host port Docker mapped to the container's port 8000.
+
+    Args:
+        container_name: The running container's name.
+
+    Returns:
+        The host TCP port number.
+
+    Raises:
+        RuntimeError: If ``docker port`` fails or prints nothing parseable.
+    """
+    # Output looks like "0.0.0.0:55012" (possibly one line per address family).
+    output = _run_docker(["docker", "port", container_name, "8000"])
+    first_line = output.splitlines()[0] if output else ""
+    try:
+        return int(first_line.rsplit(":", 1)[1])
+    except (IndexError, ValueError) as exc:
+        raise RuntimeError(
+            f"could not parse host port from docker port output: {output!r}"
+        ) from exc
 
 
 def _load_expected_counts() -> dict[str, dict[str, object]]:
@@ -149,8 +189,6 @@ def test_container_builds_runs_and_serves_real_data() -> None:
     run_id = uuid.uuid4().hex[:8]
     container_name = f"freshflow-smoke-{run_id}"
     volume_name = f"freshflow-smoke-data-{run_id}"
-    port = _free_port()
-    base_url = f"http://127.0.0.1:{port}"
 
     subprocess.run(
         ["docker", "build", "-t", IMAGE_TAG, "."],
@@ -159,23 +197,27 @@ def test_container_builds_runs_and_serves_real_data() -> None:
     )
 
     try:
-        subprocess.run(["docker", "volume", "create", volume_name], check=True, capture_output=True)
-        subprocess.run(
+        _run_docker(["docker", "volume", "create", volume_name])
+        _run_docker(
             [
                 "docker",
                 "run",
                 "-d",
                 "--name",
                 container_name,
+                # Let Docker assign the host port: guessing a free port from
+                # the host side races against Docker Desktop's port
+                # forwarder, which can refuse a port the OS just reported
+                # as available.
                 "-p",
-                f"{port}:8000",
+                "127.0.0.1::8000",
                 "-v",
                 f"{volume_name}:/data",
                 IMAGE_TAG,
-            ],
-            check=True,
-            capture_output=True,
+            ]
         )
+        port = _container_host_port(container_name)
+        base_url = f"http://127.0.0.1:{port}"
 
         _wait_for_health(base_url, HEALTH_TIMEOUT_SECONDS)
 
@@ -207,20 +249,12 @@ def test_container_builds_runs_and_serves_real_data() -> None:
             assert by_item[1001]["recommended_quantity"] == 18
             assert by_item[1001]["item_name"] == "Organic Bananas"
 
-        user = subprocess.run(
-            ["docker", "inspect", IMAGE_TAG, "--format", "{{ .Config.User }}"],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
+        user = _run_docker(["docker", "inspect", IMAGE_TAG, "--format", "{{ .Config.User }}"])
         assert user and user != "root", f"image runs as root or has no USER set: {user!r}"
 
-        healthcheck = subprocess.run(
-            ["docker", "inspect", IMAGE_TAG, "--format", "{{ .Config.Healthcheck }}"],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
+        healthcheck = _run_docker(
+            ["docker", "inspect", IMAGE_TAG, "--format", "{{ .Config.Healthcheck }}"]
+        )
         assert "CMD" in healthcheck, f"image has no HEALTHCHECK: {healthcheck!r}"
     finally:
         subprocess.run(["docker", "rm", "-f", container_name], capture_output=True)
