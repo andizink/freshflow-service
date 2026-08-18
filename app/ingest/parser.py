@@ -1,8 +1,13 @@
 """Streaming CSV reading and header validation for ingest (PLAN.md §5, ADR-005).
 
-Uses the stdlib ``csv`` module in streaming mode (not pandas) so memory
-stays flat regardless of file size and every row can be attributed to its
-exact source line number in the ingest report.
+Uses the stdlib ``csv`` module in streaming mode (not pandas) so this
+module adds no per-file memory overhead of its own and every row can be
+attributed to its exact source line number in the ingest report. Note that
+overall ingest memory is *bounded*, not flat: the upload endpoint buffers
+the request body (capped by ``settings.max_upload_bytes``, ADR-016) and
+the ingest service materializes all accepted rows before its atomic
+replace transaction (ADR-009) — deliberate trade-offs made where those
+decisions live, not here.
 """
 
 import csv

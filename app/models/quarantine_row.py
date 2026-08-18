@@ -1,6 +1,6 @@
 """ORM model for quarantined rows (PLAN.md §4.1, §4.3)."""
 
-from sqlalchemy import JSON, ForeignKey
+from sqlalchemy import JSON, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -20,6 +20,13 @@ class QuarantineRow(Base):
     """
 
     __tablename__ = "quarantine_rows"
+    __table_args__ = (
+        # The audit endpoint filters and counts by ingest_id; quarantine
+        # history accumulates across every ingest with no retention policy
+        # (ADR-010), so without this index each page becomes a full-table
+        # scan as history grows.
+        Index("ix_quarantine_ingest_id", "ingest_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     ingest_id: Mapped[str] = mapped_column(ForeignKey("ingest_jobs.ingest_id"))

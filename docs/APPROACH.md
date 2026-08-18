@@ -69,7 +69,12 @@ documentation), each owning an exclusive set of files. Merge conflicts
 weren't resolved; they were made structurally impossible. The full
 specification and the verbatim prompt that launched the team are
 appended as [PLAN.md](PLAN.md) and
-[KICKOFF_PROMPT.md](KICKOFF_PROMPT.md).
+[KICKOFF_PROMPT.md](KICKOFF_PROMPT.md). One honest deviation from that
+prompt: it asked for one commit per lane, but the four parallel lanes
+landed merged as a single implementation commit — the phase structure
+(scaffold → implement → e2e → review fixes → docs) is visible in the
+history, the per-lane boundaries are not. If you want to audit lane
+ownership, the exclusive file sets are specified in PLAN.md §7.1.
 
 **Capability matched to risk.** Not every task got the same model. The
 data-rules module — where a subtle mistake silently corrupts data — got
